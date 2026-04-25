@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin Panel</title>
+
+<style>
+body{
+font-family:Arial;
+background:#111;
+color:white;
+padding:20px;
+}
+
+.section{
+background:#222;
+padding:15px;
+margin:15px 0;
+border-radius:10px;
+}
+
+input{
+padding:8px;
+margin:5px;
+}
+
+button{
+padding:6px 10px;
+border:none;
+border-radius:5px;
+cursor:pointer;
+}
+
+.add{background:#28a745;color:white;}
+.delete{background:red;color:white;}
+.done{background:green;color:white;}
+
+.item{
+margin-bottom:10px;
+padding:10px;
+background:#333;
+border-radius:8px;
+}
+
+.table{
+color:#f1c40f;
+font-weight:bold;
+}
+
+#qrBox img{
+margin-top:10px;
+border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Admin Panel</h2>
+
+<!-- 🔥 QR GENERATOR -->
+<div class="section">
+<h3>Table QR Codes</h3>
+
+<input id="tableNum" placeholder="Enter table number">
+<button onclick="generateQR()">Generate QR</button>
+
+<div id="qrBox"></div>
+</div>
+
+<!-- ADD ITEM -->
+<div class="section">
+<h3>Add Item</h3>
+
+<input id="name" placeholder="Name">
+<input id="price" placeholder="Price">
+<input id="category" placeholder="Category">
+<button class="add" onclick="addItem()">Add</button>
+</div>
+
+<!-- MENU LIST -->
+<div class="section">
+<h3>Menu Items</h3>
+<div id="menuList"></div>
+</div>
+
+<!-- ORDERS -->
+<div class="section">
+<h3>Orders</h3>
+<div id="orders"></div>
+</div>
+
+<script>
+
+// 🔥 QR GENERATOR
+function generateQR(){
+let table = document.getElementById("tableNum").value;
+
+if(!table){
+alert("Enter table number");
+return;
+}
+
+let url = `http://127.0.0.1:5000/menu-page?table=${table}`;
+
+let qr = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+
+document.getElementById("qrBox").innerHTML = `
+<p><b>Table ${table}</b></p>
+<img src="${qr}">
+<br>
+<small>${url}</small>
+`;
+}
+
+// ADD ITEM
+function addItem(){
+let name = document.getElementById("name").value;
+let price = document.getElementById("price").value;
+let category = document.getElementById("category").value;
+
+if(!name || !price){
+alert("Fill all fields");
+return;
+}
+
+fetch('/add-item',{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({name, price, category})
+})
+.then(()=>{
+alert("Added ✅");
+loadMenu();
+
+document.getElementById("name").value="";
+document.getElementById("price").value="";
+document.getElementById("category").value="";
+});
+}
+
+// LOAD MENU
+function loadMenu(){
+fetch('/all-menu')
+.then(r=>r.json())
+.then(data=>{
+let html="";
+
+data.forEach(i=>{
+html+=`
+<div class="item">
+<img src="${i.image}" width="50">
+${i.name} ₹${i.price}
+<button class="delete" onclick="del(${i.id})">Delete</button>
+</div>`;
+});
+
+document.getElementById("menuList").innerHTML = html;
+});
+}
+
+// DELETE ITEM
+function del(id){
+fetch('/delete-item/'+id,{method:"POST"})
+.then(()=>loadMenu());
+}
+
+// LOAD ORDERS (WITH TABLE NUMBER)
+function loadOrders(){
+fetch('/orders')
+.then(r=>r.json())
+.then(data=>{
+let html="";
+
+data.forEach(o=>{
+let items = JSON.parse(o.items);
+
+let itemList="";
+items.forEach(i=>{
+itemList += `${i.name} ₹${i.price}<br>`;
+});
+
+html+=`
+<div class="item">
+<b>Order ${o.order_id}</b> | 
+<span class="table">Table ${o.table}</span><br>
+${itemList}
+Total: ₹${o.total}<br>
+Status: ${o.status}<br>
+<button class="done" onclick="done(${o.order_id})">Done</button>
+</div>
+`;
+});
+
+document.getElementById("orders").innerHTML = html;
+});
+}
+
+// UPDATE STATUS
+function done(id){
+fetch('/update-status/'+id,{method:"POST"})
+.then(()=>loadOrders());
+}
+
+// INIT
+loadMenu();
+loadOrders();
+setInterval(loadOrders,3000);
+
+</script>
+
+</body>
+</html>
